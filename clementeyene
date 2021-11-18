@@ -1,0 +1,24 @@
+#!/bin/sh
+getArtist () {
+	dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' |grep "string" | awk ' {if(NR==8) print $2+} ' | sed 's/\"//g'
+}
+getTitle () {
+	dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | grep "string" | awk ' {if(NR==15) print $3} ' | sed 's/\"//g'
+}
+getPlaybackStatus () {
+	dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:"PlaybackStatus" | awk '{if(NR==2)print $3} ' | sed 's/\"//g'
+}
+case $(getPlaybackStatus) in
+	'Paused')
+		echo "$(getArtist) - $(getTitle) ($(getPlaybackStatus))"
+		break
+		;;
+	'Playing')
+		echo "$(getArtist) - $(getTitle)"
+		break
+		;;
+	'Stopped')
+		echo "Nothing Playing"
+		break
+		;;
+esac
