@@ -1,14 +1,24 @@
 #!/bin/sh
 
+case $(dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' 2>&1) in
+        "Error org.freedesktop.DBus.Error.ServiceUnknown: The name org.mpris.MediaPlayer2.clementine was not provided by any .service files")
+                echo "dbus service not found. Is Clementine running?"
+                exit 1
+                ;;
+        *)
+                break
+                ;;
+esac
+
 # Finds what line the xesam:artist dbus element is on and adds two to it:
 getXesamArtistLine () {
-	rawNum=$(~/rawClementineStatus | grep -n xesam:artist | cut -f1 -d:)
+	rawNum=$(dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | grep -n xesam:artist | cut -f1 -d:)
 	echo "$((rawNum + 2))"
 }
 
 # Finds what line the xesam:title dbus element is on and adds one to it:
 getXesamTitleLine () {
-        rawNum=$(~/rawClementineStatus | grep -n xesam:title | cut -f1 -d:)
+        rawNum=$(dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | grep -n xesam:title | cut -f1 -d:)
         echo "$((rawNum + 1))"
 }
 
