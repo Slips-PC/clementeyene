@@ -1,10 +1,28 @@
 #!/bin/sh
+
+# Finds what line the xesam:artist dbus element is on and adds two to it:
+getXesamArtistLine () {
+	rawNum=$(~/rawClementineStatus | grep -n xesam:artist | cut -f1 -d:)
+	echo "$((rawNum + 2))"
+}
+
+# Finds what line the xesam:title dbus element is on and adds one to it:
+getXesamTitleLine () {
+        rawNum=$(~/rawClementineStatus | grep -n xesam:title | cut -f1 -d:)
+        echo "$((rawNum + 1))"
+}
+
+#Prints the full dbus Metadata string and then does some Unix Text Parse Magic TM To crop it down to the Artist
 getArtist () {
-	dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk '/string/ {ORS=" "} {if(NR==22){for(i=2;i<=NF;i++) print $i}}' |sed 's/\"//g'
+        dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk -v var=$(getXesamArtistLine) '/string/ {ORS=" "} {if(NR==var){for(i=2;i<=NF;i++) print $i}}' |sed 's/\"//g'
 }
+
+#Likewise, but for the title.
 getTitle () {
-	dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk ' {ORS=" "} {if(NR==39){for(i=3;i<=NF;i++) print $i}}' | sed 's/\"//g'
+	dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk -v var=$(getXesamTitleLine) '/string/ {ORS=" "} {if(NR==var){for(i=3;i<=NF;i++) print $i}}' |sed 's/\"//g'
 }
+
+#Prints the full dbus PlaybackStatus string and then crops it down to the part we want.
 getPlaybackStatus () {
 	dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:"PlaybackStatus" | awk '{if(NR==2)print $3} ' | sed 's/\"//g'
 }
