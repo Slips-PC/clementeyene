@@ -36,17 +36,54 @@ getTitle () {
 getPlaybackStatus () {
 	dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:"PlaybackStatus" | awk '{if(NR==2)print $3} ' | sed 's/\"//g'
 }
-case $(getPlaybackStatus) in
-	'Paused')
-		echo "$(getArtist)- $(getTitle)($(getPlaybackStatus))"
+
+getFullStatus () {
+	case $(getPlaybackStatus) in
+        'Paused')
+                echo "$(getArtist)- $(getTitle)($(getPlaybackStatus))"
+                break
+                ;;
+        'Playing')
+                echo "$(getArtist)- $(getTitle)"
+                break
+                ;;
+        'Stopped')
+                echo "Nothing Playing"
+                break
+                ;;
+esac
+}
+case $1 in
+	-p|--playing)
+		echo $(getPlaybackStatus)
 		break
 		;;
-	'Playing')
-		echo "$(getArtist)- $(getTitle)"
+	-a|--artist)
+		echo $(getArtist)
 		break
 		;;
-	'Stopped')
-		echo "Nothing Playing"
+	-t|--title)
+		echo $(getTitle)
+		break
+		;;
+	-h|--help)
+		echo "ClementEYEne: A simple bash script that gets Clementine Music Player status over dbus"
+		echo "------"
+		echo "-p, --playing     Get current playback status"
+		echo "-a, --artist      Get current track's artist"
+		echo "-t, --title       Get current track's title"
+		echo "-h, --help        Displays this message."
+		echo "No flags will output the full string in <ARTIST> - <TITLE> format. Only one flag at a time can be parsed."
+		echo "------"
+		break
+		;;
+		'')
+		echo $(getFullStatus)
+		break
+		;;
+		*)
+		echo "Usage: clementeyene [OPTION]"
+		echo "Try 'clementeyene -h' for more information."
 		break
 		;;
 esac
