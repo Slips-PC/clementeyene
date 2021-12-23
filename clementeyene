@@ -1,5 +1,5 @@
 #!/bin/sh
-
+trap 'exit 0' TERM
 case $(dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' 2>&1) in
         "Error org.freedesktop.DBus.Error.ServiceUnknown: The name org.mpris.MediaPlayer2.clementine was not provided by any .service files")
                 echo "dbus service not found. Is Clementine running?"
@@ -13,81 +13,90 @@ case $(dbus-send --session --type=method_call --print-reply --dest=org.mpris.Med
                 break
                 ;;
 esac
+                dbus-monitor "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged', type='signal', sender='org.mpris.MediaPlayer2.clementine'" |
+                while read -r line; do
+                # Finds what line the xesam:artist dbus element is on and adds two to it:
+                        getXesamArtistLine () {
+                                rawNum=$(dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | grep -n xesam:artist | cut -f1 -d:)
+                                echo "$((rawNum + 2))"
+                        }
 
-# Finds what line the xesam:artist dbus element is on and adds two to it:
-getXesamArtistLine () {
-	rawNum=$(dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | grep -n xesam:artist | cut -f1 -d:)
-	echo "$((rawNum + 2))"
-}
+                        # Finds what line the xesam:title dbus element is on and adds one to it:
+                        getXesamTitleLine () {
+                                rawNum=$(dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | grep -n xesam:title | cut -f1 -d:)
+                                echo "$((rawNum + 1))"
+                        }
 
-# Finds what line the xesam:title dbus element is on and adds one to it:
-getXesamTitleLine () {
-        rawNum=$(dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | grep -n xesam:title | cut -f1 -d:)
-        echo "$((rawNum + 1))"
-}
+                        #Prints the full dbus Metadata string and then does some Unix Text Parse Magic TM To crop it down to the Artist
+                        getArtist () {
+                                dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk -v var=$(getXesamArtistLine) '/string/ {ORS=" "} {if(NR==var){for(i=2;i<=NF;i++) print $i}}' |sed 's/\"//g'
+                        }
 
-#Prints the full dbus Metadata string and then does some Unix Text Parse Magic TM To crop it down to the Artist
-getArtist () {
-        dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk -v var=$(getXesamArtistLine) '/string/ {ORS=" "} {if(NR==var){for(i=2;i<=NF;i++) print $i}}' |sed 's/\"//g'
-}
+                        #Likewise, but for the title.
+                        getTitle () {
+                                dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk -v var=$(getXesamTitleLine) '/string/ {ORS=" "} {if(NR==var){for(i=3;i<=NF;i++) print $i}}' |sed 's/\"//g'
+                        }
 
-#Likewise, but for the title.
-getTitle () {
-	dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk -v var=$(getXesamTitleLine) '/string/ {ORS=" "} {if(NR==var){for(i=3;i<=NF;i++) print $i}}' |sed 's/\"//g'
-}
+                        #Prints the full dbus PlaybackStatus string and then crops it down to the part we want.
+                        getPlaybackStatus () {
+                                dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:"PlaybackStatus" | awk '{if(NR==2)print $3} ' | sed 's/\"//g'
+                        }
 
-#Prints the full dbus PlaybackStatus string and then crops it down to the part we want.
-getPlaybackStatus () {
-	dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:"PlaybackStatus" | awk '{if(NR==2)print $3} ' | sed 's/\"//g'
-}
+                        getFullStatus () {
+                                case $(getPlaybackStatus) in
+                                'Paused')
+                                        echo -ne "\r\e[K$(getArtist)- $(getTitle)($(getPlaybackStatus))"
+                                        break
+                                        ;;
+                                'Playing')
+                                        echo -ne "\r\e[K$(getArtist)- $(getTitle)"
+                                        break
+                                        ;;
+                                'Stopped')
+                                        echo -ne "\r\e[KNothing Playing"
+                                        break
+                                        ;;
+                                esac
+                        }
+                        case $1 in
+                                -p|--playing)
+                                        echo $(getPlaybackStatus)
+                                        killall --younger-than=1s dbus-monitor
+                                        exit 0
+                                        ;;
+                                -a|--artist)
+                                        echo $(getArtist)
+                                        killall --younger-than=1s dbus-monitor
+                                        exit 0
 
-getFullStatus () {
-	case $(getPlaybackStatus) in
-        'Paused')
-                echo "$(getArtist)- $(getTitle)($(getPlaybackStatus))"
-                break
-                ;;
-        'Playing')
-                echo "$(getArtist)- $(getTitle)"
-                break
-                ;;
-        'Stopped')
-                echo "Nothing Playing"
-                break
-                ;;
-esac
-}
-case $1 in
-	-p|--playing)
-		echo $(getPlaybackStatus)
-		break
-		;;
-	-a|--artist)
-		echo $(getArtist)
-		break
-		;;
-	-t|--title)
-		echo $(getTitle)
-		break
-		;;
-	-h|--help)
-		echo "ClementEYEne: A simple bash script that gets Clementine Music Player status over dbus"
-		echo "------"
-		echo "-p, --playing     Get current playback status"
-		echo "-a, --artist      Get current track's artist"
-		echo "-t, --title       Get current track's title"
-		echo "-h, --help        Displays this message."
-		echo "No flags will output the full string in <ARTIST> - <TITLE> format. Only one flag at a time can be parsed."
-		echo "------"
-		break
-		;;
-		'')
-		echo $(getFullStatus)
-		break
-		;;
-		*)
-		echo "Usage: clementeyene [OPTION]"
-		echo "Try 'clementeyene -h' for more information."
-		break
-		;;
-esac
+                                        ;;
+                                -t|--title)
+                                        echo $(getTitle)
+                                        killall --younger-than=1s dbus-monitor
+                                        exit 0
+                                        ;;
+                                -h|--help)
+                                        echo "ClementEYEne: A simple bash script that gets Clementine Music Player status over dbus"
+                                        echo "------"
+                                        echo "-p, --playing     Get current playback status"
+                                        echo "-a, --artist      Get current track's artist"
+                                        echo "-t, --title       Get current track's title"
+                                        echo "-h, --help        Displays this message."
+                                        echo "No flags will output the full string in <ARTIST> - <TITLE> format. Only one flag at a time can be parsed."
+                                        echo "------"
+                                        killall --younger-than=1s dbus-monitor
+                                        exit 0
+                                        ;;
+                                '')
+                                        echo -n $(getFullStatus)
+                                        continue
+                                        ;;
+                                *)
+                                        echo "Usage: clementeyene [OPTION]"
+                                        echo "Try 'clementeyene -h' for more information."
+                                        killall --younger-than=1s dbus-monitor
+                                        exit 0
+                                        ;;
+
+                        esac
+                done
