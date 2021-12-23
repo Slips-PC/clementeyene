@@ -1,5 +1,5 @@
 #!/bin/sh
-
+trap 'exit 0' TERM
 case $(dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' 2>&1) in
         "Error org.freedesktop.DBus.Error.ServiceUnknown: The name org.mpris.MediaPlayer2.clementine was not provided by any .service files")
                 echo "dbus service not found. Is Clementine running?"
@@ -13,9 +13,7 @@ case $(dbus-send --session --type=method_call --print-reply --dest=org.mpris.Med
                 break
                 ;;
 esac
-while :
-do
-        dbus-monitor "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged', type='signal', sender='org.mpris.MediaPlayer2.clementine'" |
+                dbus-monitor "interface='org.freedesktop.DBus.Properties',member='PropertiesChanged', type='signal', sender='org.mpris.MediaPlayer2.clementine'" |
                 while read -r line; do
                 # Finds what line the xesam:artist dbus element is on and adds two to it:
                         getXesamArtistLine () {
@@ -58,19 +56,23 @@ do
                                         echo -ne "\r\e[KNothing Playing"
                                         break
                                         ;;
-                        esac
+                                esac
                         }
                         case $1 in
                                 -p|--playing)
                                         echo $(getPlaybackStatus)
+                                        killall --younger-than=1s dbus-monitor
                                         exit 0
                                         ;;
                                 -a|--artist)
                                         echo $(getArtist)
+                                        killall --younger-than=1s dbus-monitor
                                         exit 0
+
                                         ;;
                                 -t|--title)
                                         echo $(getTitle)
+                                        killall --younger-than=1s dbus-monitor
                                         exit 0
                                         ;;
                                 -h|--help)
@@ -82,18 +84,19 @@ do
                                         echo "-h, --help        Displays this message."
                                         echo "No flags will output the full string in <ARTIST> - <TITLE> format. Only one flag at a time can be parsed."
                                         echo "------"
+                                        killall --younger-than=1s dbus-monitor
                                         exit 0
                                         ;;
-                                        '')
+                                '')
                                         echo -n $(getFullStatus)
-                                        break
+                                        continue
                                         ;;
-                                        *)
+                                *)
                                         echo "Usage: clementeyene [OPTION]"
                                         echo "Try 'clementeyene -h' for more information."
+                                        killall --younger-than=1s dbus-monitor
                                         exit 0
                                         ;;
 
                         esac
                 done
-done
