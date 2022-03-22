@@ -29,12 +29,12 @@ esac
 
                         #Prints the full dbus Metadata string and then does some Unix Text Parse Magic TM To crop it down to the Artist
                         getArtist () {
-                                dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk -v var=$(getXesamArtistLine) '/string/ {ORS=" "} {if(NR==var){for(i=2;i<=NF;i++) print $i}}' |sed 's/\"//g'
+                                dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk -v var="$(getXesamArtistLine)" '/string/ {ORS=" "} {if(NR==var){for(i=2;i<=NF;i++) print $i}}' |sed 's/\"//g'
                         }
 
                         #Likewise, but for the title.
                         getTitle () {
-                                dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk -v var=$(getXesamTitleLine) '/string/ {ORS=" "} {if(NR==var){for(i=3;i<=NF;i++) print $i}}' |sed 's/\"//g'
+                                dbus-send --session --type=method_call --print-reply --dest=org.mpris.MediaPlayer2.clementine /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get string:'org.mpris.MediaPlayer2.Player' string:'Metadata' | awk -v var="$(getXesamTitleLine)" '/string/ {ORS=" "} {if(NR==var){for(i=3;i<=NF;i++) print $i}}' |sed 's/\"//g'
                         }
 
                         #Prints the full dbus PlaybackStatus string and then crops it down to the part we want.
@@ -45,33 +45,33 @@ esac
                         getFullStatus () {
                                 case $(getPlaybackStatus) in
                                 'Paused')
-                                        echo -ne "\r\e[K$(getArtist)- $(getTitle)($(getPlaybackStatus))"
+                                        printf "\r\e[K$(getArtist)- $(getTitle)($(getPlaybackStatus))"
                                         break
                                         ;;
                                 'Playing')
-                                        echo -ne "\r\e[K$(getArtist)- $(getTitle)"
+                                        printf "\r\e[K$(getArtist)- $(getTitle)"
                                         break
                                         ;;
                                 'Stopped')
-                                        echo -ne "\r\e[KNothing Playing"
+                                        printf "\r\e[KNothing Playing"
                                         break
                                         ;;
                                 esac
                         }
                         case $1 in
                                 -p|--playing)
-                                        echo $(getPlaybackStatus)
+                                        getPlaybackStatus
                                         killall --younger-than=1s dbus-monitor
                                         exit 0
                                         ;;
                                 -a|--artist)
-                                        echo $(getArtist)
+                                        getArtist
                                         killall --younger-than=1s dbus-monitor
                                         exit 0
 
                                         ;;
                                 -t|--title)
-                                        echo $(getTitle)
+                                        getTitle
                                         killall --younger-than=1s dbus-monitor
                                         exit 0
                                         ;;
@@ -88,7 +88,7 @@ esac
                                         exit 0
                                         ;;
                                 '')
-                                        echo -n $(getFullStatus)
+                                        echo -n "$(getFullStatus)"
                                         continue
                                         ;;
                                 *)
